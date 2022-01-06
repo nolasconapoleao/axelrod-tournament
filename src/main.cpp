@@ -1,8 +1,10 @@
 #include <iostream>
 #include <random>
+#include <algorithm>
+#include <functional>
 
 enum class Decision {
-  KEEP_SILENT,
+  TRUST,
   BETRAY
 };
 
@@ -10,8 +12,8 @@ std::ostream& operator<<(std::ostream& os, Decision d)
 {
   switch(d)
   {
-    case Decision::KEEP_SILENT:
-     os << "Keep silent"; 
+    case Decision::TRUST:
+     os << "Trust"; 
      break;
     case Decision::BETRAY:
      os << "Betray"; 
@@ -25,8 +27,8 @@ Decision mapToDecision(char in) {
   Decision d;
   switch(in)
   {
-    case 'S':
-     d = Decision::KEEP_SILENT; 
+    case 'T':
+     d = Decision::TRUST; 
      break;
     case 'B':
      d = Decision::BETRAY; 
@@ -40,42 +42,68 @@ Decision randomDecision() {
   std::mt19937 rng(dev());
   std::uniform_int_distribution<int8_t> dist6(1,2);
 
-  Decision d = dist6(rng) == 1 ? Decision::KEEP_SILENT : Decision::BETRAY;
+  Decision d = dist6(rng) == 1 ? Decision::TRUST : Decision::BETRAY;
   return d;
 }
 
-struct Scores {
-  int me = 0;
-  int you = 0;
+using Num = uint;
+using Score = float;
+constexpr Num NumPlayers = 2;
+constexpr Score K0 = 1/NumPlayers;
+using Func = std::function<float(int betrayals)>;
+Func linear = [](int betrayals){ return ((1-K0)*betrayals / (NumPlayers-1)) + K0; };
 
-  void update(Decision dMe, Decision dYou) {
-    if(dMe == Decision::KEEP_SILENT && dYou == Decision::KEEP_SILENT) {
-      me += 1; you += 1;
-    } else if(dMe == Decision::KEEP_SILENT && dYou == Decision::BETRAY) {
-      me += 3; you += 0;
-    } else if(dMe == Decision::BETRAY && dYou == Decision::KEEP_SILENT) {
-      me += 0; you += 3;
-    } else if(dMe == Decision::BETRAY && dYou == Decision::BETRAY) {
-      me += 2; you += 2;
-    }
+/**
+ * @brief Normalized player score.
+ * 
+ * @param p number of players
+ * @param d player decision
+ * @param b number of betrayals
+ * @param k punishment reduction function 
+ * @return float 
+ */
+float score(Num p, Decision d, Num b, Func k) {
+  if(b == 0) {
+    return k(b);
+  } else if(b == p) {
+    return 1/p;
+  } else if(d == Decision::BETRAY) {
+    return 0;
+  } else if(d == Decision::TRUST) {
+    return k(b)/(p-b);
   }
-};
+
+  throw -1;
+}
+
+std::vector<Score> computeScores(std::vector<Decision> decisions) {
+  auto betrayals = std::count(decisions.begin(), decisions.end(), Decision::BETRAY);
+  auto players = decisions.size();
+
+  std::vector<Score> scores;
+  for(const auto &decision : decisions) {
+    auto s = score(players, decision, betrayals, linear);
+    scores.emplace_back(s);
+  }
+  return scores;
+}
 
 int main() {
   char decision;
-  Scores s;
+  Score s;
 
   while(true) {
-    std::cout << "Keep silent or betray? (s/b)";
+    std::cout << "Trust or betray? (t/b)";
     std::cin >> decision;
 
     Decision dYou = mapToDecision(decision);
     Decision dMe = randomDecision();
 
+    auto scores = computeScores(std::vector<Decision> {dYou, dMe});
+
     std::cout << "You chose: " << dYou << "\n";
     std::cout << "I chose: " << dMe << "\n";
-    s.update(dMe, dYou);
-    std::cout << "SCORES: YOU " << s.you << " ME " << s.me << "\n";
+    std::cout << "SCORES: YOU " << scores[0] << " ME " << scores[1] << "\n";
     std::cout << "###################################\n";
   }
 }
