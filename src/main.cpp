@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <functional>
 
+// Decision datatype and print utilities
 enum class Decision {
   TRUST,
   BETRAY
@@ -22,37 +23,67 @@ std::ostream& operator<<(std::ostream& os, Decision d)
   return os;
 }
 
-Decision mapToDecision(char in) {
-  in = std::toupper(in);
-  Decision d;
-  switch(in)
-  {
-    case 'T':
-     d = Decision::TRUST; 
-     break;
-    case 'B':
-     d = Decision::BETRAY; 
-     break;
+// Agents
+class Agent {
+  public:
+  virtual Decision decide() = 0;
+};
+
+class Player : public Agent {
+  public:
+  Decision decide() override {
+    char in;
+    std::cout << "Trust or betray? (t/b)";
+    std::cin >> in;
+    in = std::toupper(in);
+    switch(in)
+    {
+      case 'T':
+        return Decision::TRUST; 
+      case 'B':
+        return Decision::BETRAY; 
+      default:
+        std::cout << "Try again\n";
+        return decide();
+    }
   }
-  return d;
-}
+};
 
-Decision randomDecision() {
-  std::random_device dev;
-  std::mt19937 rng(dev());
-  std::uniform_int_distribution<int8_t> dist6(1,2);
+class Random : public Agent {
+  public:
+  Decision decide() override {
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<int8_t> dist6(1,2);
 
-  Decision d = dist6(rng) == 1 ? Decision::TRUST : Decision::BETRAY;
-  return d;
-}
+    return dist6(rng) == 1 ? Decision::TRUST : Decision::BETRAY;
+  }
+};
+
+class Fool : public Agent {
+  public:
+  Decision decide() override {
+    return Decision::TRUST;
+  }
+};
+
+class Traitor : public Agent {
+  public:
+  Decision decide() override {
+    return Decision::BETRAY;
+  }
+};
 
 using Num = uint;
 using Score = float;
-constexpr Num NumPlayers = 2;
-constexpr Score K0 = 1/NumPlayers;
 using Func = std::function<float(int betrayals)>;
+
+constexpr Num NumPlayers = 3;
+constexpr Score K0 = 1/float(NumPlayers);
 Func linear = [](int betrayals){ return ((1-K0)*betrayals / (NumPlayers-1)) + K0; };
 
+
+// Score utilities
 /**
  * @brief Normalized player score.
  * 
@@ -88,22 +119,33 @@ std::vector<Score> computeScores(std::vector<Decision> decisions) {
   return scores;
 }
 
+// Print utilities
+template <class T>
+void print(std::string header, std::vector<T> vec) {
+  std::vector<Score> scores;
+  std::cout << header << " ";
+  for(const auto &val : vec) {
+    std::cout << val << " ";
+  }
+  std::cout << "\n";
+}
+
 int main() {
-  char decision;
-  Score s;
-
   while(true) {
-    std::cout << "Trust or betray? (t/b)";
-    std::cin >> decision;
+    std::vector<Agent*> agents;
+    agents.emplace_back(new Player());
+    agents.emplace_back(new Random());
+    agents.emplace_back(new Random());
 
-    Decision dYou = mapToDecision(decision);
-    Decision dMe = randomDecision();
+    std::vector<Decision> decisions; 
+    for(const auto &agent : agents) {
+      decisions.emplace_back(agent->decide());
+    }
 
-    auto scores = computeScores(std::vector<Decision> {dYou, dMe});
+    auto scores = computeScores(decisions);
 
-    std::cout << "You chose: " << dYou << "\n";
-    std::cout << "I chose: " << dMe << "\n";
-    std::cout << "SCORES: YOU " << scores[0] << " ME " << scores[1] << "\n";
+    print("Decisions", decisions);
+    print("Scores", scores);
     std::cout << "###################################\n";
   }
 }
