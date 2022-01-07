@@ -2,6 +2,7 @@
 #include <random>
 #include <algorithm>
 #include <functional>
+#include <math.h>
 
 // Decision datatype and print utilities
 enum class Decision {
@@ -76,12 +77,14 @@ class Traitor : public Agent {
 
 using Num = uint;
 using Score = float;
+using Cofficient = float;
 using Func = std::function<float(int betrayals)>;
 
 constexpr Num NumPlayers = 3;
 constexpr Score K0 = 1/float(NumPlayers);
+constexpr Cofficient a = .2;
 Func linear = [](int betrayals){ return ((1-K0)*betrayals / (NumPlayers-1)) + K0; };
-
+Func quadratic = [](int betrayals) { return a * std::pow(betrayals, 2) + ((1 - K0) * betrayals / float(NumPlayers - 1) ) - (a * (NumPlayers - 1) * betrayals) + K0; };
 
 // Score utilities
 /**
@@ -113,7 +116,7 @@ std::vector<Score> computeScores(std::vector<Decision> decisions) {
 
   std::vector<Score> scores;
   for(const auto &decision : decisions) {
-    auto s = score(players, decision, betrayals, linear);
+    auto s = score(players, decision, betrayals, quadratic);
     scores.emplace_back(s);
   }
   return scores;
